@@ -68,6 +68,14 @@ class UnalignedDataset(BaseDataset):
             rgb_img.paste(B_img, mask=B_img.split()[3])
             B_img = rgb_img
         if hasattr(self.opt, "remove_bg_A") and self.opt.remove_bg_A and B_img_alpha is not None:
+            size_A = A_img.width
+            size_B = B_img.width
+            if size_A > size_B:
+                B_img = B_img.resize((size_A, size_A), Image.Resampling.LANCZOS)
+                B_img_alpha = B_img_alpha.resize((size_A, size_A), Image.BILINEAR)
+            else:
+                A_img = A_img.resize((size_B, size_B), Image.Resampling.LANCZOS)
+                # B_img_alpha = B_img_alpha.resize((size_A, size_A), Image.BILINEAR)
             rgb_img = Image.new("RGB", A_img.size, (255, 255, 255))
             rgb_img.paste(A_img, mask=B_img_alpha)
             A_img = rgb_img
