@@ -57,14 +57,20 @@ class UnalignedDataset(BaseDataset):
         B_path = self.B_paths[index_B]
         A_img = Image.open(A_path)
         B_img = Image.open(B_path)
+        B_img_alpha = None
         if A_img.mode == "RGBA":
             rgb_img = Image.new("RGB", A_img.size, (255, 255, 255))
             rgb_img.paste(A_img, mask=A_img.split()[3])
             A_img = rgb_img
         if B_img.mode == "RGBA":
+            B_img_alpha = B_img.split()[3]
             rgb_img = Image.new("RGB", B_img.size, (255, 255, 255))
             rgb_img.paste(B_img, mask=B_img.split()[3])
             B_img = rgb_img
+        if hasattr(self.opt, "remove_bg_A") and self.opt.remove_bg_A and B_img_alpha is not None:
+            rgb_img = Image.new("RGB", A_img.size, (255, 255, 255))
+            rgb_img.paste(A_img, mask=B_img_alpha)
+            A_img = rgb_img
         A_img = A_img.convert("RGB")
         B_img = B_img.convert("RGB")
 
