@@ -56,29 +56,26 @@ class UnalignedDataset(BaseDataset):
             index_B = random.randint(0, self.B_size - 1)
         B_path = self.B_paths[index_B]
         A_img = Image.open(A_path)
+
         B_img = Image.open(B_path)
-        B_img_alpha = None
         if A_img.mode == "RGBA":
             rgb_img = Image.new("RGB", A_img.size, (255, 255, 255))
             rgb_img.paste(A_img, mask=A_img.split()[3])
             A_img = rgb_img
         if B_img.mode == "RGBA":
-            B_img_alpha = B_img.split()[3]
             rgb_img = Image.new("RGB", B_img.size, (255, 255, 255))
             rgb_img.paste(B_img, mask=B_img.split()[3])
             B_img = rgb_img
-        if hasattr(self.opt, "remove_bg_A") and self.opt.remove_bg_A and B_img_alpha is not None:
-            size_A = A_img.width
-            size_B = B_img.width
-            if size_A > size_B:
-                B_img = B_img.resize((size_A, size_A), Image.Resampling.LANCZOS)
-                B_img_alpha = B_img_alpha.resize((size_A, size_A), Image.BILINEAR)
-            else:
-                A_img = A_img.resize((size_B, size_B), Image.Resampling.LANCZOS)
-                # B_img_alpha = B_img_alpha.resize((size_A, size_A), Image.BILINEAR)
-            rgb_img = Image.new("RGB", A_img.size, (255, 255, 255))
-            rgb_img.paste(A_img, mask=B_img_alpha)
-            A_img = rgb_img
+        if hasattr(self.opt, "remove_bg_A") and self.opt.remove_bg_A:
+            A_img_filename = os.path.basename(A_path)
+            A_img_png_filename = os.path.splitext(A_img_filename)[0] + '.png'
+            if os.path.isfile(os.path.join(self.dir_B, A_img_filename)):
+                A_img_png = Image.open(os.path.join(self.dir_B, A_img_png_filename))
+                A_img_png = A_img_png.resize(A_img.size, Image.Resampling.LANCZOS)
+                mask = A_img_png.split()[3]
+                rgb_img = Image.new("RGB", A_img.size, (255, 255, 255))
+                rgb_img.paste(A_img, mask=mask)
+                A_img = rgb_img
         A_img = A_img.convert("RGB")
         B_img = B_img.convert("RGB")
 
