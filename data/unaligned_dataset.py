@@ -55,8 +55,18 @@ class UnalignedDataset(BaseDataset):
         else:   # randomize the index for domain B to avoid fixed pairs.
             index_B = random.randint(0, self.B_size - 1)
         B_path = self.B_paths[index_B]
-        A_img = Image.open(A_path).convert('RGB')
-        B_img = Image.open(B_path).convert('RGB')
+        A_img = Image.open(A_path)
+        B_img = Image.open(B_path)
+        if A_img.mode == "RGBA":
+            rgb_img = Image.new("RGB", A_img.size, (255, 255, 255))
+            rgb_img.paste(A_img, mask=A_img.split()[3])
+            A_img = rgb_img
+        if B_img.mode == "RGBA":
+            rgb_img = Image.new("RGB", B_img.size, (255, 255, 255))
+            rgb_img.paste(B_img, mask=B_img.split()[3])
+            B_img = rgb_img
+        A_img = A_img.convert("RGB")
+        B_img = B_img.convert("RGB")
 
         # Apply image transformation
         # For CUT/FastCUT mode, if in finetuning phase (learning rate is decaying),
