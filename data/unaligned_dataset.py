@@ -69,7 +69,7 @@ class UnalignedDataset(BaseDataset):
         if hasattr(self.opt, "remove_bg_A") and self.opt.remove_bg_A:
             A_img_filename = os.path.basename(A_path)
             A_img_png_filename = os.path.splitext(A_img_filename)[0] + '.png'
-            if os.path.isfile(os.path.join(self.dir_B, A_img_filename)):
+            if os.path.isfile(os.path.join(self.dir_B, A_img_png_filename)):
                 A_img_png = Image.open(os.path.join(self.dir_B, A_img_png_filename))
                 A_img_png = A_img_png.resize(A_img.size, Image.Resampling.LANCZOS)
                 mask = A_img_png.split()[3]
