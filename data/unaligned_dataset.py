@@ -71,7 +71,8 @@ class UnalignedDataset(BaseDataset):
             A_img_png_filename = os.path.splitext(A_img_filename)[0] + '.png'
             if os.path.isfile(os.path.join(self.dir_B, A_img_png_filename)):
                 A_img_png = Image.open(os.path.join(self.dir_B, A_img_png_filename))
-                A_img_png = A_img_png.resize(A_img.size, Image.Resampling.LANCZOS)
+                if A_img_png.width != A_img.width or A_img_png.height != A_img.height:
+                    A_img_png = A_img_png.resize(A_img.size, Image.Resampling.LANCZOS)
                 mask = A_img_png.split()[3]
                 rgb_img = Image.new("RGB", A_img.size, (255, 255, 255))
                 rgb_img.paste(A_img, mask=mask)
