@@ -69,6 +69,8 @@ class BaseOptions():
                             default=1, type=int,
                             help='Number of downsampling layers used by StyleGAN2Generator')
         parser.add_argument("--remove_bg_A", action='store_true', help='Remove background in A', default=False)
+        parser.add_argument('--path_A', type=str, help='path to A', default="")
+        parser.add_argument('--path_B', type=str, help='path to B', default="")
 
         self.initialized = True
         return parser
