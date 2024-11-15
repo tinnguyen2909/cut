@@ -73,8 +73,9 @@ class UnalignedDataset(BaseDataset):
         if hasattr(self.opt, "remove_bg_A") and self.opt.remove_bg_A:
             A_img_filename = os.path.basename(A_path)
             A_img_png_filename = os.path.splitext(A_img_filename)[0] + '.webp'
-            if os.path.isfile(os.path.join(self.dir_B, A_img_png_filename)):
-                A_img_png = Image.open(os.path.join(self.dir_B, A_img_png_filename))
+            dir_B = os.path.dirname(B_path)
+            if os.path.isfile(os.path.join(dir_B, A_img_png_filename)):
+                A_img_png = Image.open(os.path.join(dir_B, A_img_png_filename))
                 if A_img_png.width != A_img.width or A_img_png.height != A_img.height:
                     A_img_png = A_img_png.resize(A_img.size, Image.Resampling.LANCZOS)
                 mask = A_img_png.split()[3]
