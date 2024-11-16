@@ -59,6 +59,8 @@ class CUTModel(BaseModel):
         # specify the training losses you want to print out.
         # The training/test scripts will call <BaseModel.get_current_losses>
         self.loss_names = ['G_GAN', 'D_real', 'D_fake', 'G', 'NCE']
+        if self.opt.use_perceptual_loss:
+            self.loss_names += ['perceptual_content', 'perceptual_style']
         self.visual_names = ['real_A', 'fake_B', 'real_B']
         self.nce_layers = [int(i) for i in self.opt.nce_layers.split(',')]
 
@@ -90,6 +92,8 @@ class CUTModel(BaseModel):
             self.optimizer_D = torch.optim.Adam(self.netD.parameters(), lr=opt.lr, betas=(opt.beta1, opt.beta2))
             self.optimizers.append(self.optimizer_G)
             self.optimizers.append(self.optimizer_D)
+            if self.opt.use_perceptual_loss:
+                self.vgg = networks.VGGPerceptualLoss().to(self.device)
 
     def data_dependent_initialize(self, data):
         """
@@ -193,6 +197,11 @@ class CUTModel(BaseModel):
             loss_NCE_both = self.loss_NCE
 
         self.loss_G = self.loss_G_GAN + loss_NCE_both
+        if self.opt.use_perceptual_loss:
+            vgg_losses = self.compute_vgg_losses()
+            self.loss_perceptual_content = vgg_losses["content"]
+            self.loss_perceptual_style = vgg_losses["style"]
+            self.loss_G += (self.loss_perceptual_content + self.loss_perceptual_style)
         return self.loss_G
 
     def calculate_NCE_loss(self, src, tgt):
@@ -212,3 +221,60 @@ class CUTModel(BaseModel):
             total_nce_loss += loss.mean()
 
         return total_nce_loss / n_layers
+
+    def compute_style_loss(self, feat_fake: torch.Tensor, feat_real: torch.Tensor):
+        """Compute style loss using Gram matrices"""
+        b, ch, h, w = feat_fake.size()
+        feat_fake = feat_fake.view(b, ch, -1)
+        feat_real = feat_real.view(b, ch, -1)
+
+        # Compute Gram matrices
+        gram_fake = torch.bmm(feat_fake, feat_fake.transpose(1, 2)) / (ch * h * w)
+        gram_real = torch.bmm(feat_real, feat_real.transpose(1, 2)) / (ch * h * w)
+
+        return torch.nn.functional.l1_loss(gram_fake, gram_real)
+
+    def compute_vgg_losses(self):
+        """Compute both content and style losses using VGG19 features"""
+        losses = {}
+
+        # Normalize inputs
+        real_A = (self.real_A - self.vgg.mean.to(self.real_A.device)) / self.vgg.std.to(self.real_A.device)
+        fake_B = (self.fake_B - self.vgg.mean.to(self.fake_B.device)) / self.vgg.std.to(self.fake_B.device)
+        real_B = (self.real_B - self.vgg.mean.to(self.real_B.device)) / self.vgg.std.to(self.real_B.device)
+
+        # VGG19-specific layer selection
+        # Block indices in VGG19:
+        # conv1_1(0-2), conv1_2(2-4)
+        # conv2_1(4-7), conv2_2(7-9)
+        # conv3_1(9-12), conv3_2(12-14), conv3_3(14-16), conv3_4(16-18)
+        # conv4_1(18-21), conv4_2(21-23), conv4_3(23-25), conv4_4(25-27)
+        # conv5_1(27-30), conv5_2(30-32), conv5_3(32-34), conv5_4(34-36)
+
+        content_layers = [3]  # conv4_2 for content preservation
+        style_layers = [0, 1, 2, 3, 4]  # Use all blocks for style
+
+        x_content = real_A
+        x_fake = fake_B
+        x_style = real_B
+
+        content_loss = 0
+        style_loss = 0
+
+        for i, block in enumerate(self.vgg.blocks):
+            x_content = block(x_content)
+            x_fake = block(x_fake)
+            x_style = block(x_style)
+
+            # Content loss between real_A and fake_B
+            if i in content_layers:
+                content_loss += torch.nn.functional.l1_loss(x_fake, x_content)
+
+            # Style loss between fake_B and real_B
+            if i in style_layers:
+                style_loss += self.compute_style_loss(x_fake, x_style)
+
+        losses['content'] = content_loss * self.opt.lambda_perceptual_content
+        losses['style'] = style_loss * self.opt.lambda_perceptual_style
+
+        return losses

@@ -5,7 +5,66 @@ from torch.nn import init
 import functools
 from torch.optim import lr_scheduler
 import numpy as np
+from torchvision import models
 from .stylegan_networks import StyleGAN2Discriminator, StyleGAN2Generator, TileStyleGAN2Discriminator
+
+
+class VGGPerceptualLoss(nn.Module):
+    def __init__(self, layer_weights=[1.0, 1.0, 1.0, 1.0]):
+        super(VGGPerceptualLoss, self).__init__()
+        vgg = models.vgg19(weights=models.VGG19_Weights.DEFAULT)
+
+        self.blocks = nn.ModuleList([
+            vgg.features[:4].eval(),    # Block 1
+            vgg.features[4:9].eval(),   # Block 2
+            vgg.features[9:18].eval(),  # Block 3
+            vgg.features[18:27].eval(),  # Block 4
+            vgg.features[27:36].eval()  # Block 5
+        ])
+
+        # Single adaptive pool for input images
+        self.adaptive_pool = nn.AdaptiveAvgPool2d(
+            (224, 224))  # VGG default input size
+
+        for block in self.blocks:
+            for p in block.parameters():
+                p.requires_grad = False
+
+        self.layer_weights = layer_weights
+        self.mean = torch.tensor([0.485, 0.456, 0.406]).view(1, 3, 1, 1)
+        self.std = torch.tensor([0.229, 0.224, 0.225]).view(1, 3, 1, 1)
+
+    def forward(self, input, target):
+        if input.shape[1] == 1:
+            input = input.repeat(1, 3, 1, 1)
+        if target.shape[1] == 1:
+            target = target.repeat(1, 3, 1, 1)
+        if input.shape[1] == 4:
+            input = input[:, :3, :, :]
+        if target.shape[1] == 4:
+            target = target[:, :3, :, :]
+
+        # First pool the inputs to VGG size
+        input = self.adaptive_pool(input)
+        target = self.adaptive_pool(target)
+
+        # Then normalize
+        input = (input - self.mean.to(input.device)) / \
+            self.std.to(input.device)
+        target = (target - self.mean.to(target.device)) / \
+            self.std.to(target.device)
+
+        loss = 0.0
+        x = input
+        y = target
+
+        for block, weight in zip(self.blocks, self.layer_weights):
+            x = block(x)
+            y = block(y)
+            loss += weight * torch.nn.functional.l1_loss(x, y)
+
+        return loss
+
 
 ###############################################################################
 # Helper Functions
@@ -13,19 +72,19 @@ from .stylegan_networks import StyleGAN2Discriminator, StyleGAN2Generator, TileS
 
 
 def get_filter(filt_size=3):
-    if(filt_size == 1):
+    if (filt_size == 1):
         a = np.array([1., ])
-    elif(filt_size == 2):
+    elif (filt_size == 2):
         a = np.array([1., 1.])
-    elif(filt_size == 3):
+    elif (filt_size == 3):
         a = np.array([1., 2., 1.])
-    elif(filt_size == 4):
+    elif (filt_size == 4):
         a = np.array([1., 3., 3., 1.])
-    elif(filt_size == 5):
+    elif (filt_size == 5):
         a = np.array([1., 4., 6., 4., 1.])
-    elif(filt_size == 6):
+    elif (filt_size == 6):
         a = np.array([1., 5., 10., 10., 5., 1.])
-    elif(filt_size == 7):
+    elif (filt_size == 7):
         a = np.array([1., 6., 15., 20., 15., 6., 1.])
 
     filt = torch.Tensor(a[:, None] * a[None, :])
@@ -51,8 +110,8 @@ class Downsample(nn.Module):
         self.pad = get_pad_layer(pad_type)(self.pad_sizes)
 
     def forward(self, inp):
-        if(self.filt_size == 1):
-            if(self.pad_off == 0):
+        if (self.filt_size == 1):
+            if (self.pad_off == 0):
                 return inp[:, :, ::self.stride, ::self.stride]
             else:
                 return self.pad(inp)[:, :, ::self.stride, ::self.stride]
@@ -87,18 +146,18 @@ class Upsample(nn.Module):
 
     def forward(self, inp):
         ret_val = F.conv_transpose2d(self.pad(inp), self.filt, stride=self.stride, padding=1 + self.pad_size, groups=inp.shape[1])[:, :, 1:, 1:]
-        if(self.filt_odd):
+        if (self.filt_odd):
             return ret_val
         else:
             return ret_val[:, :, :-1, :-1]
 
 
 def get_pad_layer(pad_type):
-    if(pad_type in ['refl', 'reflect']):
+    if (pad_type in ['refl', 'reflect']):
         PadLayer = nn.ReflectionPad2d
-    elif(pad_type in ['repl', 'replicate']):
+    elif (pad_type in ['repl', 'replicate']):
         PadLayer = nn.ReplicationPad2d
-    elif(pad_type == 'zero'):
+    elif (pad_type == 'zero'):
         PadLayer = nn.ZeroPad2d
     else:
         print('Pad type [%s] not recognized' % pad_type)
@@ -206,7 +265,7 @@ def init_net(net, init_type='normal', init_gain=0.02, gpu_ids=[], debug=False, i
     Return an initialized network.
     """
     if len(gpu_ids) > 0:
-        assert(torch.cuda.is_available())
+        assert (torch.cuda.is_available())
         net.to(gpu_ids[0])
         # if not amp:
         # net = torch.nn.DataParallel(net, gpu_ids)  # multi-GPUs for non-AMP training
@@ -563,7 +622,7 @@ class PatchSampleF(nn.Module):
                     patch_id = patch_ids[feat_id]
                 else:
                     # torch.randperm produces cudaErrorIllegalAddress for newer versions of PyTorch. https://github.com/taesungp/contrastive-unpaired-translation/issues/83
-                    #patch_id = torch.randperm(feat_reshape.shape[1], device=feats[0].device)
+                    # patch_id = torch.randperm(feat_reshape.shape[1], device=feats[0].device)
                     patch_id = np.random.permutation(feat_reshape.shape[1])
                     patch_id = patch_id[:int(min(num_patches, patch_id.shape[0]))]  # .to(patch_ids.device)
                 patch_id = torch.tensor(patch_id, dtype=torch.long, device=feat.device)
@@ -930,7 +989,7 @@ class ResnetGenerator(nn.Module):
             n_blocks (int)      -- the number of ResNet blocks
             padding_type (str)  -- the name of padding layer in conv layers: reflect | replicate | zero
         """
-        assert(n_blocks >= 0)
+        assert (n_blocks >= 0)
         super(ResnetGenerator, self).__init__()
         self.opt = opt
         if type(norm_layer) == functools.partial:
@@ -946,7 +1005,7 @@ class ResnetGenerator(nn.Module):
         n_downsampling = 2
         for i in range(n_downsampling):  # add downsampling layers
             mult = 2 ** i
-            if(no_antialias):
+            if (no_antialias):
                 model += [nn.Conv2d(ngf * mult, ngf * mult * 2, kernel_size=3, stride=2, padding=1, bias=use_bias),
                           norm_layer(ngf * mult * 2),
                           nn.ReLU(True)]
@@ -1026,7 +1085,7 @@ class ResnetDecoder(nn.Module):
             n_blocks (int)      -- the number of ResNet blocks
             padding_type (str)  -- the name of padding layer in conv layers: reflect | replicate | zero
         """
-        assert(n_blocks >= 0)
+        assert (n_blocks >= 0)
         super(ResnetDecoder, self).__init__()
         if type(norm_layer) == functools.partial:
             use_bias = norm_layer.func == nn.InstanceNorm2d
@@ -1041,7 +1100,7 @@ class ResnetDecoder(nn.Module):
 
         for i in range(n_downsampling):  # add upsampling layers
             mult = 2 ** (n_downsampling - i)
-            if(no_antialias):
+            if (no_antialias):
                 model += [nn.ConvTranspose2d(ngf * mult, int(ngf * mult / 2),
                                              kernel_size=3, stride=2,
                                              padding=1, output_padding=1,
@@ -1083,7 +1142,7 @@ class ResnetEncoder(nn.Module):
             n_blocks (int)      -- the number of ResNet blocks
             padding_type (str)  -- the name of padding layer in conv layers: reflect | replicate | zero
         """
-        assert(n_blocks >= 0)
+        assert (n_blocks >= 0)
         super(ResnetEncoder, self).__init__()
         if type(norm_layer) == functools.partial:
             use_bias = norm_layer.func == nn.InstanceNorm2d
@@ -1098,7 +1157,7 @@ class ResnetEncoder(nn.Module):
         n_downsampling = 2
         for i in range(n_downsampling):  # add downsampling layers
             mult = 2 ** i
-            if(no_antialias):
+            if (no_antialias):
                 model += [nn.Conv2d(ngf * mult, ngf * mult * 2, kernel_size=3, stride=2, padding=1, bias=use_bias),
                           norm_layer(ngf * mult * 2),
                           nn.ReLU(True)]
@@ -1302,7 +1361,7 @@ class NLayerDiscriminator(nn.Module):
 
         kw = 4
         padw = 1
-        if(no_antialias):
+        if (no_antialias):
             sequence = [nn.Conv2d(input_nc, ndf, kernel_size=kw, stride=2, padding=padw), nn.LeakyReLU(0.2, True)]
         else:
             sequence = [nn.Conv2d(input_nc, ndf, kernel_size=kw, stride=1, padding=padw), nn.LeakyReLU(0.2, True), Downsample(ndf)]
@@ -1311,7 +1370,7 @@ class NLayerDiscriminator(nn.Module):
         for n in range(1, n_layers):  # gradually increase the number of filters
             nf_mult_prev = nf_mult
             nf_mult = min(2 ** n, 8)
-            if(no_antialias):
+            if (no_antialias):
                 sequence += [
                     nn.Conv2d(ndf * nf_mult_prev, ndf * nf_mult, kernel_size=kw, stride=2, padding=padw, bias=use_bias),
                     norm_layer(ndf * nf_mult),
