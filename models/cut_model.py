@@ -59,7 +59,7 @@ class CUTModel(BaseModel):
         # specify the training losses you want to print out.
         # The training/test scripts will call <BaseModel.get_current_losses>
         self.loss_names = ['G_GAN', 'D_real', 'D_fake', 'G', 'NCE']
-        if self.opt.use_perceptual_loss:
+        if hasattr(self.opt, 'use_perceptual_loss') and self.opt.use_perceptual_loss:
             self.loss_names += ['perceptual_content', 'perceptual_style']
         self.visual_names = ['real_A', 'fake_B', 'real_B']
         self.nce_layers = [int(i) for i in self.opt.nce_layers.split(',')]
@@ -92,7 +92,7 @@ class CUTModel(BaseModel):
             self.optimizer_D = torch.optim.Adam(self.netD.parameters(), lr=opt.lr, betas=(opt.beta1, opt.beta2))
             self.optimizers.append(self.optimizer_G)
             self.optimizers.append(self.optimizer_D)
-            if self.opt.use_perceptual_loss:
+            if hasattr(self.opt, 'use_perceptual_loss') and self.opt.use_perceptual_loss:
                 self.vgg = networks.VGGPerceptualLoss().to(self.device)
 
     def data_dependent_initialize(self, data):
@@ -197,7 +197,7 @@ class CUTModel(BaseModel):
             loss_NCE_both = self.loss_NCE
 
         self.loss_G = self.loss_G_GAN + loss_NCE_both
-        if self.opt.use_perceptual_loss:
+        if hasattr(self.opt, 'use_perceptual_loss') and self.opt.use_perceptual_loss:
             vgg_losses = self.compute_vgg_losses()
             self.loss_perceptual_content = vgg_losses["content"]
             self.loss_perceptual_style = vgg_losses["style"]
