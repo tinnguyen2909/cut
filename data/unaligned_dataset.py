@@ -35,7 +35,9 @@ class UnalignedDataset(BaseDataset):
         path_Bs = [p.strip() for p in opt.path_B.split(',')]
         self.A_paths = []
         self.B_paths = []
+        self.map = {}
         for path_A, path_B in zip(path_As, path_Bs):
+            self.map[os.path.abspath(path_A)] = os.path.abspath(path_B)
             self.A_paths += sorted(make_dataset(path_A, opt.max_dataset_size))   # load images from '/path/to/data/trainA'
             self.B_paths += sorted(make_dataset(path_B, opt.max_dataset_size))    # load images from '/path/to/data/trainB'
         self.A_size = len(self.A_paths)  # get the size of dataset A
@@ -73,7 +75,7 @@ class UnalignedDataset(BaseDataset):
         if hasattr(self.opt, "remove_bg_A") and self.opt.remove_bg_A:
             A_img_filename = os.path.basename(A_path)
             A_img_png_filename = os.path.splitext(A_img_filename)[0] + '.webp'
-            dir_B = os.path.dirname(B_path)
+            dir_B = self.map[os.path.dirname(A_path)]
             if os.path.isfile(os.path.join(dir_B, A_img_png_filename)):
                 A_img_png = Image.open(os.path.join(dir_B, A_img_png_filename))
                 if A_img_png.width != A_img.width or A_img_png.height != A_img.height:
