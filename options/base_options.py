@@ -71,6 +71,8 @@ class BaseOptions():
         parser.add_argument("--remove_bg_A", action='store_true', help='Remove background in A', default=False)
         parser.add_argument('--path_A', type=str, help='path to A', default="")
         parser.add_argument('--path_B', type=str, help='path to B', default="")
+        parser.add_argument('--enable_rotation', type=str, help='Enable rotation on B images', default=False)
+        parser.add_argument('--rotation_probability', type=int, help='Probability of rotation', default=25)
 
         self.initialized = True
         return parser

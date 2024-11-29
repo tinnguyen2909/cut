@@ -86,6 +86,10 @@ class UnalignedDataset(BaseDataset):
                 A_img = rgb_img
         A_img = A_img.convert("RGB")
         B_img = B_img.convert("RGB")
+        if hasattr(self.opt, "enable_rotation") and self.opt.enable_rotation:
+            if self.opt.rotation_probability > random.randint(0, 100):
+                angle = random.uniform(-90, 90)
+                B_img = B_img.rotate(angle, expand=True, fillcolor=(255, 255, 255))
 
         # Apply image transformation
         # For CUT/FastCUT mode, if in finetuning phase (learning rate is decaying),
