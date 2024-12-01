@@ -75,13 +75,13 @@ class UnalignedDataset(BaseDataset):
         B_width, B_height = B_img.size
         if B_width != B_height:
             max_side = max(B_width, B_height)
-            square_img = Image.new("RGB", (max_side), (255, 255, 255))
+            square_img = Image.new("RGB", (max_side, max_side), (255, 255, 255))
             square_img.paste(B_img, (int((max_side - B_width) // 2), int((max_side - B_height) // 2)))
             B_img = square_img
         A_width, A_height = A_img.size
         if A_width != A_height:
             max_side = max(A_width, A_height)
-            square_img = Image.new("RGB", (max_side), (255, 255, 255))
+            square_img = Image.new("RGB", (max_side, max_side), (255, 255, 255))
             square_img.paste(A_img, (int((max_side - A_width) // 2), int((max_side - A_height) // 2)))
             A_img = square_img
         if hasattr(self.opt, "remove_bg_A") and self.opt.remove_bg_A:
