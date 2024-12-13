@@ -1,5 +1,7 @@
 import numpy as np
 import torch
+
+from models.contextual import ContextualBilateralLoss, ContextualLoss
 from .base_model import BaseModel
 from . import networks
 from .patchnce import PatchNCELoss
@@ -61,6 +63,8 @@ class CUTModel(BaseModel):
         self.loss_names = ['G_GAN', 'D_real', 'D_fake', 'G', 'NCE']
         if hasattr(self.opt, 'use_perceptual_loss') and self.opt.use_perceptual_loss:
             self.loss_names += ['perceptual_content', 'perceptual_style']
+        if hasattr(self.opt, "use_contextual_loss") and self.opt.use_contextual_loss:
+            self.loss_names += ['contextual']
         self.visual_names = ['real_A', 'fake_B', 'real_B']
         self.nce_layers = [int(i) for i in self.opt.nce_layers.split(',')]
 
@@ -94,6 +98,10 @@ class CUTModel(BaseModel):
             self.optimizers.append(self.optimizer_D)
             if hasattr(self.opt, 'use_perceptual_loss') and self.opt.use_perceptual_loss:
                 self.vgg = networks.VGGPerceptualLoss().to(self.device)
+            if hasattr(self.opt, "use_contextual_loss") and self.opt.use_contextual_loss:
+                # self.contextual = ContextualBilateralLoss(use_vgg=True, vgg_layers=["relu1_2", "relu2_2", "relu3_4", "relu4_4", "relu5_4"]).to(self.device)
+                # self.contextual = ContextualLoss(use_vgg=True, vgg_layers=["relu3_4", "relu4_4", "relu5_4"]).to(self.device)
+                self.contextual = ContextualBilateralLoss(use_vgg=True, vgg_layers=["relu3_4", "relu4_4", "relu5_4"]).to(self.device)
 
     def data_dependent_initialize(self, data):
         """
@@ -154,8 +162,10 @@ class CUTModel(BaseModel):
             self.flipped_for_equivariance = self.opt.isTrain and (np.random.random() < 0.5)
             if self.flipped_for_equivariance:
                 self.real = torch.flip(self.real, [3])
-
+        # import pdb
+        # pdb.set_trace()
         self.fake = self.netG(self.real)
+
         self.fake_B = self.fake[:self.real_A.size(0)]
         if self.opt.nce_idt:
             self.idt_B = self.fake[self.real_A.size(0):]
@@ -202,15 +212,21 @@ class CUTModel(BaseModel):
             self.loss_perceptual_content = vgg_losses["content"]
             self.loss_perceptual_style = vgg_losses["style"]
             self.loss_G += (self.loss_perceptual_content + self.loss_perceptual_style)
+        if hasattr(self.opt, "use_contextual_loss") and self.opt.use_contextual_loss:
+            # contextual_loss = self.contextual(self.fake_B, self.real_A) + self.contextual(self.fake_B, self.real_B)
+            contextual_loss = self.contextual(self.fake_B, self.real_A)
+            self.loss_contextual = self.opt.lambda_contextual * contextual_loss
+            self.loss_G += self.loss_contextual
         return self.loss_G
 
     def calculate_NCE_loss(self, src, tgt):
         n_layers = len(self.nce_layers)
+        # import pdb
+        # pdb.set_trace()
         feat_q = self.netG(tgt, self.nce_layers, encode_only=True)
 
         if self.opt.flip_equivariance and self.flipped_for_equivariance:
             feat_q = [torch.flip(fq, [3]) for fq in feat_q]
-
         feat_k = self.netG(src, self.nce_layers, encode_only=True)
         feat_k_pool, sample_ids = self.netF(feat_k, self.opt.num_patches, None)
         feat_q_pool, _ = self.netF(feat_q, self.opt.num_patches, sample_ids)
@@ -221,6 +237,7 @@ class CUTModel(BaseModel):
             total_nce_loss += loss.mean()
 
         return total_nce_loss / n_layers
+
 
     def compute_style_loss(self, feat_fake: torch.Tensor, feat_real: torch.Tensor):
         """Compute style loss using Gram matrices"""

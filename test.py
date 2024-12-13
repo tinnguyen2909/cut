@@ -33,6 +33,7 @@ from models import create_model
 from util.visualizer import save_images
 from util import html
 import util.util as util
+import time
 
 
 if __name__ == '__main__':
@@ -60,8 +61,10 @@ if __name__ == '__main__':
                 model.eval()
         if i >= opt.num_test:  # only apply our model to opt.num_test images.
             break
+        st = time.time()
         model.set_input(data)  # unpack data from data loader
         model.test()           # run inference
+        print('time:', time.time() - st)
         visuals = model.get_current_visuals()  # get image results
         img_path = model.get_image_paths()     # get image paths
         if i % 5 == 0:  # save images to an HTML file

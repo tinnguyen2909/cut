@@ -600,6 +600,8 @@ class PatchSampleF(nn.Module):
         self.gpu_ids = gpu_ids
 
     def create_mlp(self, feats):
+        # import pdb
+        # pdb.set_trace()
         for mlp_id, feat in enumerate(feats):
             input_nc = feat.shape[1]
             mlp = nn.Sequential(*[nn.Linear(input_nc, self.nc), nn.ReLU(), nn.Linear(self.nc, self.nc)])
@@ -615,6 +617,8 @@ class PatchSampleF(nn.Module):
         if self.use_mlp and not self.mlp_init:
             self.create_mlp(feats)
         for feat_id, feat in enumerate(feats):
+            # import pdb
+            # pdb.set_trace()
             B, H, W = feat.shape[0], feat.shape[2], feat.shape[3]
             feat_reshape = feat.permute(0, 2, 3, 1).flatten(1, 2)
             if num_patches > 0:
@@ -1266,9 +1270,26 @@ class UnetGenerator(nn.Module):
         unet_block = UnetSkipConnectionBlock(ngf, ngf * 2, input_nc=None, submodule=unet_block, norm_layer=norm_layer)
         self.model = UnetSkipConnectionBlock(output_nc, ngf, input_nc=input_nc, submodule=unet_block, outermost=True, norm_layer=norm_layer)  # add the outermost layer
 
-    def forward(self, input):
-        """Standard forward"""
-        return self.model(input)
+    # def forward(self, input):
+    #     """Standard forward"""
+    #     return self.model(input)
+
+    def forward(self, input, layers=[], encode_only=False):
+        # import pdb
+        # pdb.set_trace()
+        out = self.model(input)
+        if len(layers) > 0:
+            feats = []
+            modules = list(self.model.modules())
+            for md in modules:
+                if isinstance(md, UnetSkipConnectionBlock):
+                    if hasattr(md, 'out') and md.out is not None:
+                        feats.append(md.out)
+            if encode_only:
+                return feats
+            return out, feats
+        return out
+
 
 
 class UnetSkipConnectionBlock(nn.Module):
@@ -1333,12 +1354,21 @@ class UnetSkipConnectionBlock(nn.Module):
                 model = down + [submodule] + up
 
         self.model = nn.Sequential(*model)
+        self.out = None
 
+    # def forward(self, x):
+    #     if self.outermost:
+    #         return self.model(x)
+    #     else:   # add skip connections
+    #         return torch.cat([x, self.model(x)], 1)
     def forward(self, x):
         if self.outermost:
             return self.model(x)
         else:   # add skip connections
-            return torch.cat([x, self.model(x)], 1)
+            self.out = torch.cat([x, self.model(x)], 1)
+            return self.out
+
+
 
 
 class NLayerDiscriminator(nn.Module):

@@ -42,6 +42,8 @@ class TrainOptions(BaseOptions):
         parser.add_argument("--use_perceptual_loss", action='store_true', help='use perceptual loss', default=False)
         parser.add_argument("--lambda_perceptual_content", type=float, default=2.0, help='weight for content perceptual loss')
         parser.add_argument("--lambda_perceptual_style", type=float, default=10.0, help='weight for style perceptual loss')
+        parser.add_argument("--use_contextual_loss", action='store_true', help='use contextual loss', default=False)
+        parser.add_argument("--lambda_contextual", type=float, default=1.0, help='weight for contextual loss')
 
         self.isTrain = True
         return parser
