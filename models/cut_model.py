@@ -100,8 +100,8 @@ class CUTModel(BaseModel):
                 self.vgg = networks.VGGPerceptualLoss().to(self.device)
             if hasattr(self.opt, "use_contextual_loss") and self.opt.use_contextual_loss:
                 # self.contextual = ContextualBilateralLoss(use_vgg=True, vgg_layers=["relu1_2", "relu2_2", "relu3_4", "relu4_4", "relu5_4"]).to(self.device)
-                # self.contextual = ContextualLoss(use_vgg=True, vgg_layers=["relu3_4", "relu4_4", "relu5_4"]).to(self.device)
-                self.contextual = ContextualBilateralLoss(use_vgg=True, vgg_layers=["relu3_4", "relu4_4", "relu5_4"]).to(self.device)
+                self.contextual = ContextualLoss(use_vgg=True, vgg_layers=["relu3_4", "relu4_4", "relu5_4"]).to(self.device)
+                # self.contextual = ContextualBilateralLoss(use_vgg=True, vgg_layers=["relu3_4", "relu4_4", "relu5_4"]).to(self.device)
 
     def data_dependent_initialize(self, data):
         """
@@ -213,8 +213,8 @@ class CUTModel(BaseModel):
             self.loss_perceptual_style = vgg_losses["style"]
             self.loss_G += (self.loss_perceptual_content + self.loss_perceptual_style)
         if hasattr(self.opt, "use_contextual_loss") and self.opt.use_contextual_loss:
-            # contextual_loss = self.contextual(self.fake_B, self.real_A) + self.contextual(self.fake_B, self.real_B)
-            contextual_loss = self.contextual(self.fake_B, self.real_A)
+            contextual_loss = self.contextual(self.fake_B, self.real_A) + self.contextual(self.fake_B, self.real_B)
+            # contextual_loss = self.contextual(self.fake_B, self.real_A)
             self.loss_contextual = self.opt.lambda_contextual * contextual_loss
             self.loss_G += self.loss_contextual
         return self.loss_G
@@ -268,7 +268,7 @@ class CUTModel(BaseModel):
         # conv4_1(18-21), conv4_2(21-23), conv4_3(23-25), conv4_4(25-27)
         # conv5_1(27-30), conv5_2(30-32), conv5_3(32-34), conv5_4(34-36)
 
-        content_layers = [3]  # conv4_2 for content preservation
+        content_layers = [1, 2]  # conv4_2 for content preservation
         style_layers = [0, 1, 2, 3, 4]  # Use all blocks for style
 
         x_content = real_A
